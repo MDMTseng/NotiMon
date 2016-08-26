@@ -1,0 +1,3 @@
+[submodule "GP_React"]
+	path = GP_React
+	url = https://github.com/MDMTseng/GP_React.git
