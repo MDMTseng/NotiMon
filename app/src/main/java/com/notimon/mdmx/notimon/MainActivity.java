@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.ActionBar;
@@ -252,6 +253,10 @@ public class MainActivity extends AppCompatActivity {
         servMan.unbindService();
         super.onDestroy();
     }
+
+
+
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -299,13 +304,18 @@ public class MainActivity extends AppCompatActivity {
             APP_Info = new JSONObject();
             try {
                 sysNotifier.put("APP_Info",APP_Info);
-                APP_Info.put("version","v0.0.1");
+
+                try {
+                    PackageInfo pInfo = MainActivity.this.getPackageManager().getPackageInfo(getPackageName(), 0);
+                    APP_Info.put("version",pInfo.versionName);
+                    APP_Info.put("versionCode",pInfo.versionCode);
+                } catch (PackageManager.NameNotFoundException e) {
+                    e.printStackTrace();
+                    APP_Info.put("version",e.toString());
+                    APP_Info.put("versionCode",-1);
+                }
                 APP_Info.put("pkgName",MainActivity.this.getPackageName());
                 APP_Info.put("Name",getApplicationName(MainActivity.this));
-
-
-
-
                 sysNotifier.put("serviceRunning",false);
                 sysNotifier.put("permissions",permissions);
 
