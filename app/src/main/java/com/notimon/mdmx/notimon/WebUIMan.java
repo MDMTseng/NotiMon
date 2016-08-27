@@ -11,6 +11,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_IF;
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_Node;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONARR_Notifier;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONOBJ_Notifier;
 
@@ -26,22 +28,7 @@ import java.util.Vector;
  * Created by ctseng on 9/21/15.
  */
 public class WebUIMan {
-    public interface CommCH_IF {
 
-        String getCHName();
-
-
-        boolean SetDest(CommCH_IF commIf);
-
-        String RecvData(final String url,final  JSONObject data,CommCH_IF from);
-
-
-
-        String SendData(final String url,final JSONObject data,CommCH_IF to);
-
-
-
-    }
     WebView webView=null;
 
     WebAppInterface WebUIManCommIf=null;
@@ -53,7 +40,7 @@ public class WebUIMan {
     String JsDataFuncCallName=null;
     String JsSysInfoFuncCallName=null;
 
-    HashMap<Object,CommCH_IF> PluginMap=null;
+    CommCH_Node chNode = null;
 
     enum IncommingDataWhich{
         MDMJsData,
@@ -66,7 +53,7 @@ public class WebUIMan {
     WebUIMan(WebView webView,String JsIfName,String EntryUrl,JSONOBJ_Notifier sysNotifier)
     {
         statusNotiMan = new StatusNotifyMan(sysNotifier);
-        PluginMap=new HashMap();
+        chNode = new CommCH_Node();
         WebUIManCommIf=new WebAppInterface();
         InitWebUIMan(webView,JsIfName,EntryUrl);
 
@@ -124,36 +111,10 @@ public class WebUIMan {
         return true;
     }
 
-    boolean AddPlugin(CommCH_IF CommIf)
-    {
-        if(CommIf.getCHName()==null||CommIf.getCHName().length()==0||
-                PluginMap.containsKey(CommIf.getCHName()))return false;
-
-
-        statusNotiMan.addNewPlugin(CommIf.getCHName());
-        Log.v("NEW plugin", CommIf.getCHName());
-        PluginMap.put(CommIf.getCHName(), CommIf);
-
-        CommIf.SetDest(WebUIManCommIf);
-        return true;
-    }
-    boolean RemovePlugin(CommCH_IF CommIf)
-    {
-
-        Log.v("Remove plugin", CommIf.getCHName());
-        if(CommIf.getCHName()==null||CommIf.getCHName().length()==0)return false;
-
-        statusNotiMan.removePlugin(CommIf.getCHName());
-        PluginMap.remove(CommIf.getCHName());
-        CommIf.SetDest(null);
-
-        return true;
-    }
-
 
     public CommCH_IF Get_CommIf()
     {
-        return WebUIManCommIf;
+        return chNode;
     }
 
 
@@ -178,14 +139,7 @@ public class WebUIMan {
         }
     };
 
-    public class WebAppInterface implements CommCH_IF {
-
-        @Override
-        public String getCHName(){return "WebUI";}
-
-
-        @Override
-        public boolean SetDest(CommCH_IF commIf){return false;}
+    public class WebAppInterface {
 
         @JavascriptInterface
         public String FromWeb(String DATA) {
@@ -197,25 +151,8 @@ public class WebUIMan {
                 String url=jobj.optString("url", null);
                 JSONObject data=jobj.optJSONObject("data");
 
-                String moduleID,resourceID;
-                int spIdx=url.indexOf("/");
-                if(spIdx==-1)
-                {
-                    moduleID=url;
-                    resourceID=null;
-                }
-                else
-                {
-                    moduleID=url.substring(0,spIdx);
-                    resourceID=url.substring(spIdx+1,url.length());
-                }
 
-                Log.v("FromWeb", "url::" + moduleID+">>"+resourceID);
-
-                CommCH_IF commIF=PluginMap.get(moduleID);
-
-                return SendData(resourceID,data ,commIF);
-
+                return chNode.SendData(url, data, null);
 
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -226,7 +163,6 @@ public class WebUIMan {
 
 
 
-        @Override
         public String RecvData(final String url,final  JSONObject data,CommCH_IF from)//may from other thread
         {
 
@@ -250,13 +186,6 @@ public class WebUIMan {
             return null;
         }
 
-
-
-        @Override
-        public String SendData(final String url,final JSONObject data,CommCH_IF to){
-
-            return to.RecvData(url,data,this);
-        }
     }
 
 

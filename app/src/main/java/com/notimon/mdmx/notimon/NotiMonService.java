@@ -19,6 +19,7 @@ import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_IF;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONOBJ_Notifier;
 
 import org.json.JSONArray;
@@ -118,46 +119,6 @@ public class NotiMonService extends Service {
 
 
 
-    class OrientationSensorEventManager implements SensorEventListener
-    {
-        OrientationSensorEventManager()
-        {
-            init_Sensor();
-        }
-        private SensorManager mSensorManager;
-        private Sensor mAccelerometer;
-        void init_Sensor()
-        {
-            mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-            mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
-            if (mAccelerometer != null){
-                mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-                statusNotifyMan.updateOrientation(1,null);
-            }
-            else {
-            }
-        }
-
-        void deInit_Sensor()
-        {
-            statusNotifyMan.updateOrientation(0,null);
-            mSensorManager.unregisterListener(this);
-            mAccelerometer = null;
-            mSensorManager = null;
-        }
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            statusNotifyMan.updateOrientation(2,event);
-        }
-
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
-        }
-    }
-
-
     mLocationUpdater locationUpdater = null;
 
 
@@ -177,7 +138,6 @@ public class NotiMonService extends Service {
 
     JSONOBJ_Notifier  systemStatusJObj = null;
     StatusNotifyMan statusNotifyMan = null;
-    OrientationSensorEventManager OrientationSensorMan;
 
     public String loadJSONFromAsset(String assetPath) {
         String json = null;
@@ -256,20 +216,6 @@ public class NotiMonService extends Service {
             @Override
             public void run() {
 
-
-
-                /*String FastPokeMap_IdMap_str =loadJSONFromAsset("MainUI/resource/FastPokeMap_IdMap.json");
-                try {
-                    FastPokeMap_IdMap = new JSONObject(FastPokeMap_IdMap_str);
-                } catch (JSONException e) {
-                    FastPokeMap_IdMap = null;
-                    FastPokeMap_IdMap_str=null;
-                    return;
-                } finally {
-                    FastPokeMap_IdMap_str=null;
-                }*/
-                //Your logic that service will perform will be placed here
-                //In this example we are just looping and waits for 1000 milliseconds in each loop.
                 while (true) {
 
                     try {
@@ -461,10 +407,6 @@ public class NotiMonService extends Service {
     public void onDestroy() {
         periodicTask.interrupt();
 
-        if(OrientationSensorMan!=null)
-            OrientationSensorMan.deInit_Sensor();
-
-
         if(locationUpdater !=null)
             locationUpdater.close();
         locationUpdater=null;
@@ -498,7 +440,7 @@ public class NotiMonService extends Service {
         this.context=context;
     }
 
-    public WebUIMan.CommCH_IF getCommCH_IF()
+    public CommCH_IF getCommCH_IF()
     {
         return NotiMonServIF;
     }
@@ -506,10 +448,10 @@ public class NotiMonService extends Service {
 
     MainComm_IF NotiMonServIF=new MainComm_IF("NotiMonServIF");
 
-    class MainComm_IF  implements WebUIMan.CommCH_IF
+    class MainComm_IF  implements CommCH_IF
     {
         String CHName;
-        WebUIMan.CommCH_IF destination;
+        CommCH_IF destination;
         MainComm_IF(String CHName)
         {
             this.CHName=CHName;
@@ -521,13 +463,13 @@ public class NotiMonService extends Service {
 
 
         @Override
-        public boolean SetDest(WebUIMan.CommCH_IF commIf) {
+        public boolean SetDest(CommCH_IF commIf) {
             destination=commIf;
             return true;
         }
 
         @Override
-        public String RecvData(String url, JSONObject data, WebUIMan.CommCH_IF from) {
+        public String RecvData(String url, JSONObject data, CommCH_IF from) {
 
             Log.v("ServRecvData::",url);
             String[] urlArr = url.split("/");
@@ -581,25 +523,6 @@ public class NotiMonService extends Service {
                 return null;
             }
 
-            if(urlArr[0].contentEquals("Orientation"))
-            {
-                if(urlArr.length<3)return null;
-
-                if(urlArr[2].contentEquals("true"))
-                {
-                    if(OrientationSensorMan==null)
-                        OrientationSensorMan = new OrientationSensorEventManager();
-                }
-                else
-                {
-
-                    if(OrientationSensorMan!=null)
-                        OrientationSensorMan.deInit_Sensor();
-                    OrientationSensorMan=null;
-                }
-                return null;
-            }
-
             if(urlArr[0].contentEquals("pokemonselect"))
             {
                 if(urlArr.length<2)return null;
@@ -625,7 +548,7 @@ public class NotiMonService extends Service {
         }
 
         @Override
-        public String SendData(String url, JSONObject data, WebUIMan.CommCH_IF to) {
+        public String SendData(String url, JSONObject data, CommCH_IF to) {
             if(to == null)return null;
             return to.RecvData(url,data,this);
         }
