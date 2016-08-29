@@ -40,7 +40,7 @@ public class DevOrienation {
     OrientationSensorEventManager OrientationSensorMan = null;
 
 
-    DevOrienation(Context context)
+    public DevOrienation(Context context)
     {
         this.context=context;
     }
@@ -112,8 +112,8 @@ public class DevOrienation {
         }
 
         @Override
-        public String SendData(String url, JSONObject data, CommCH_IF to) {
-            return to.RecvData(url,data,this);
+        public String SendData(String url, JSONObject data) {
+            return destination.SendData(url,data);
         }
 
 
@@ -133,7 +133,7 @@ public class DevOrienation {
                     Orientation_status.put("y", event.values[1]);
                     Orientation_status.put("z", event.values[2]);
                 }
-                SendData("value", Orientation_status, destination);
+                SendData("value", Orientation_status);
             } catch (JSONException e) {
                 e.printStackTrace();
             }

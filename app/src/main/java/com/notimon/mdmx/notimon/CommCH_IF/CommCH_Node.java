@@ -13,24 +13,29 @@ import java.util.HashMap;
  */
 public class CommCH_Node implements CommCH_IF {
 
-    HashMap<Object,CommCH_IF> PluginMap=null;
+    protected HashMap<Object,CommCH_IF> PluginMap=new HashMap();
 
-    public boolean SetDest(CommCH_IF commIf){return false;}
+    protected CommCH_IF destCommCH=null;
+    public boolean SetDest(CommCH_IF commIf){
+        destCommCH = commIf;
+        return false;
+    }
     public String getCHName(){return null;}
 
 
 
-    boolean addCH(CommCH_IF CommIf)
+    public boolean addCH(CommCH_IF CommIf)
     {
         if(CommIf.getCHName()==null||CommIf.getCHName().length()==0||
                 PluginMap.containsKey(CommIf.getCHName()))return false;
 
         Log.v("NEW plugin", CommIf.getCHName());
         PluginMap.put(CommIf.getCHName(), CommIf);
+        CommIf.SetDest(this);
         return true;
     }
 
-    boolean rmCH(CommCH_IF CommIf)
+    public boolean rmCH(CommCH_IF CommIf)
     {
         CommCH_IF cIF=PluginMap.remove(CommIf.getCHName());
         if(cIF!=null)
@@ -56,16 +61,20 @@ public class CommCH_Node implements CommCH_IF {
         }
 
         CommCH_IF commIF=PluginMap.get(submoduleName);
+        if(commIF != null)
+            return commIF.RecvData(rest_url, data ,this);
 
-        return SendData(rest_url, data ,commIF);
+        return RecvData_default(url, data, from);
 
     }
 
-
+    public String RecvData_default(final String url,final  JSONObject data,CommCH_IF from)
+    {
+        return null;
+    }
 
     @Override
-    public String SendData(final String url,final JSONObject data,CommCH_IF to){
-
-        return to.RecvData(url,data,this);
+    public String SendData(final String url,final JSONObject data){
+        return destCommCH.SendData(this.getCHName()+"/"+url, data);
     }
 }

@@ -16,5 +16,5 @@ public interface CommCH_IF {
 
 
 
-    String SendData(final String url,final JSONObject data,CommCH_IF to);
+    String SendData(final String url,final JSONObject data);
 }

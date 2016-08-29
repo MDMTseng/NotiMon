@@ -20,7 +20,9 @@ import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 import com.notimon.mdmx.notimon.CommCH_IF.CommCH_IF;
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_Node;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONOBJ_Notifier;
+import com.notimon.mdmx.notimon.Plugins.DevOrienation;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -175,8 +177,6 @@ public class NotiMonService extends Service {
                 if(ele.optInt("rating")>0)
                     seleMap_x.put(ele);
             }
-
-
             return seleMap_x;
 
         } catch (JSONException e) {
@@ -224,27 +224,6 @@ public class NotiMonService extends Service {
                         break;
                     }
                     final Location catcheLastLocation=locationUpdater.getLastLocation();
-                    if(locationUpdater!=null&&catcheLastLocation!=null)
-                    {
-
-                        final AsyncPromise GET_ACT_Promise= new AsyncPromise(
-
-                                new AsyncPromise.PromiseCB(){//then: success condition
-                                    public int _(int type, Object obj) {
-                                        handlePokemonJsonInfo(catcheLastLocation, (String) obj);
-                                        return 0;
-                                    }
-                                },
-                                new AsyncPromise.PromiseCB(){//catch: error condition
-                                    public int _(int type, Object obj) {
-                                        Log.i(TAG, "catch::"+obj.toString());
-                                        updateNotification("PokeRadar service is not reachable...",-1);
-                                        return 0;
-                                    }
-                                });
-                        Log.i(TAG, "GetNearByPokemon>>");
-                        pokeAPI.GetNearByPokemon(catcheLastLocation,GET_ACT_Promise);
-                    }
 
                     if(isRunning){
                         Log.i(TAG, "Service running"+ (iCounter++));
@@ -263,75 +242,8 @@ public class NotiMonService extends Service {
     JSONObject Latest_nearByPokemonInfo = null;
     GeoUtil.Coor tmpCoor= new GeoUtil.Coor();
     private synchronized int handlePokemonJsonInfo(Location lastLocation, String nearByPokemonInfo_str) {
-        //Log.v(">>>>","nearByPokemonInfo_str::"+nearByPokemonInfo_str);
         JSONObject nearByPokemonInfo = null;
 
-        try {
-            nearByPokemonInfo = new JSONObject(nearByPokemonInfo_str.toString());
-            Latest_nearByPokemonInfo = nearByPokemonInfo;
-            JSONArray pokemonArr = nearByPokemonInfo.getJSONArray("data");
-
-            int length=pokemonArr.length();
-            int PokeCount=0;
-
-
-            int SelectedPokemons_len=(SelectedPokemons==null)?0:SelectedPokemons.length();
-
-            for(int i=0;i<length;i++)
-            {
-                JSONObject pokemonData= (JSONObject)pokemonArr.opt(i);
-
-                int pokemonID=pokemonData.optInt("pokemonId");
-                boolean matchedPokemon=false;
-                for(int j=0;j<SelectedPokemons_len;j++)
-                {
-                    JSONObject listEle= SelectedPokemons.optJSONObject(j);
-                    if(listEle.optInt("id")==pokemonID)
-                    {
-                        int rating = listEle.optInt("rating");
-                        if( rating == 0 )break;
-                        pokemonData.put("rating",listEle.optInt("rating"));//TODO: put rating in the select list
-                        matchedPokemon=true;
-                        break;
-                    }
-                }
-                if(!matchedPokemon)
-                {
-                    pokemonArr.put(i,null);//an workaround way to delete
-                    continue;
-                }
-
-
-                double lon,lat;
-                lon=pokemonData.optDouble("longitude");
-                lat=pokemonData.optDouble("latitude");
-
-                GeoUtil.GeoDiffToXY_approx(tmpCoor,
-                        lastLocation.getLatitude(),lastLocation.getLongitude(),
-                        lat,lon
-                        );
-                double dist=Math.sqrt(tmpCoor.x*tmpCoor.x+tmpCoor.y*tmpCoor.y);
-                if(dist>300)//Out of range
-                {
-                    pokemonArr.put(i,null);//an workaround way to delete
-                }
-                else
-                {
-                    pokemonData.put("pokemonId",pokemonData.optInt("pokemonId"));//Pokemonradar ID starts from 1
-                    pokemonData.put("x2o",tmpCoor.x);
-                    pokemonData.put("y2o",tmpCoor.y);
-                    if(matchedPokemon)
-                        PokeCount++;
-                }
-            }
-            Log.v(">>>>",PokeCount+"");
-            updateNotification(PokeCount+":Around You",-1);
-
-            NotiMonServIF.SendNearbyPokemonUpdateNotify(nearByPokemonInfo);
-
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
         return 0;
     }
 
@@ -448,28 +360,24 @@ public class NotiMonService extends Service {
 
     MainComm_IF NotiMonServIF=new MainComm_IF("NotiMonServIF");
 
-    class MainComm_IF  implements CommCH_IF
+
+    class MainComm_IF  extends CommCH_Node
     {
         String CHName;
-        CommCH_IF destination;
+
+        DevOrienation devOri=new DevOrienation(NotiMonService.this);
         MainComm_IF(String CHName)
         {
             this.CHName=CHName;
+            addCH(devOri.getCommCH_IF());
         }
         @Override
         public String getCHName() {
             return CHName;
         }
 
-
         @Override
-        public boolean SetDest(CommCH_IF commIf) {
-            destination=commIf;
-            return true;
-        }
-
-        @Override
-        public String RecvData(String url, JSONObject data, CommCH_IF from) {
+        public String RecvData_default(String url, JSONObject data, CommCH_IF from) {
 
             Log.v("ServRecvData::",url);
             String[] urlArr = url.split("/");
@@ -480,7 +388,6 @@ public class NotiMonService extends Service {
 
                 if(urlArr[2].contentEquals("NearByPokemon"))
                 {
-                    return SendData(url+"/RSP",Latest_nearByPokemonInfo,this.destination);
                 }
 
 
@@ -492,13 +399,6 @@ public class NotiMonService extends Service {
             if(urlArr[0].contentEquals("GET"))
             {
                 if(urlArr.length<2)return null;
-
-                if(urlArr[1].contentEquals("NearByPokemon"))
-                {
-                    return SendData(url+"/RSP",Latest_nearByPokemonInfo,this.destination);
-                }
-
-
 
                 return null;
             }
@@ -547,32 +447,6 @@ public class NotiMonService extends Service {
             return null;
         }
 
-        @Override
-        public String SendData(String url, JSONObject data, CommCH_IF to) {
-            if(to == null)return null;
-            return to.RecvData(url,data,this);
-        }
-
-
-
-        public String SendPokemonUpdateNotify(int number) {
-
-            try {
-                long time= System.currentTimeMillis();
-                JSONObject jobj = new JSONObject();
-                jobj.put("number",number);
-                jobj.put("time",time);
-                return SendData("PokemonUpdateNotify",jobj,this.destination);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            return null;
-        }
-
-        public String SendNearbyPokemonUpdateNotify(JSONObject pokemonInfo) {
-
-            return SendData("PokemonUpdateNotify",pokemonInfo,this.destination);
-        }
     }
 
 

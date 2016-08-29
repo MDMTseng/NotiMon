@@ -15,6 +15,8 @@ import android.os.Handler;
 import android.util.Log;
 import android.webkit.WebView;
 
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_IF;
+import com.notimon.mdmx.notimon.CommCH_IF.CommCH_Node;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONARR_Notifier;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONOBJ_Notifier;
 
@@ -32,10 +34,9 @@ public class MainActivity extends AppCompatActivity {
 
     MainComm_IF MainIF=new MainComm_IF("MainIF");
 
-    class MainComm_IF  implements WebUIMan.CommCH_IF
+    class MainComm_IF  extends CommCH_Node
     {
         String CHName;
-        WebUIMan.CommCH_IF destination;
         MainComm_IF(String CHName)
         {
             this.CHName=CHName;
@@ -46,13 +47,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public boolean SetDest(WebUIMan.CommCH_IF commIf) {
-            destination=commIf;
-            return true;
-        }
-
-        @Override
-        public String RecvData(String url, JSONObject data, WebUIMan.CommCH_IF from) {
+        public String RecvData_default(String url, JSONObject data, CommCH_IF from) {
 
 
             String []urlArr = url.split("/");
@@ -92,19 +87,12 @@ public class MainActivity extends AppCompatActivity {
             return null;
         }
 
-        @Override
-        public String SendData(String url, JSONObject data, WebUIMan.CommCH_IF to) {
-
-            return to.RecvData(url,data,this);
-        }
-
-
         public String SendSystemStatusChange(String systemUrl ,Object data) {
             try {
                 JSONObject obj = new JSONObject();
                 obj.put("sysUrl",systemUrl);
                 obj.put("value",data);
-                return destination.RecvData("SystemStatusChange",obj,this);
+                return SendData("SystemStatusChange",obj);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -113,17 +101,18 @@ public class MainActivity extends AppCompatActivity {
 
         public String SendWebUIStore() {
             JSONObject obj= new JSONObject();
+
+
             try {
                 SharedPreferences settings = getSharedPreferences("WebUIAPP_STORAGE", 0);
                 String storeStr=settings.getString("store",null);
-                Log.i("SendWebUIStore ", "storeStr:"+storeStr);
 
                 if(storeStr==null)
                     obj=new JSONObject();
                 else
                     obj=new JSONObject(storeStr);
 
-                return destination.RecvData("InitWebUI",obj,this);
+                return SendData("InitWebUI",obj);
 
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -132,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public String GetWebUI_APP_Store() {
-            return destination.RecvData("WebUIAPP_Store/GET",null,this);
+            return SendData("WebUIAPP_Store/GET",null);
         }
     }
     WebUIMan wvMan;
@@ -183,7 +172,7 @@ public class MainActivity extends AppCompatActivity {
             systemStatusJObj.put("webUI",webUI);
             statusNotifyMan = new StatusNotifyMan(activity);
             wvMan = new WebUIMan(WView,"WebViewIf","file:///android_asset/MainUI/index.html",webUI);
-            wvMan.AddPlugin(MainIF);
+            wvMan.Get_CommIf().addCH(MainIF);
             systemStatusJObj.en_notify = true;
 
 
@@ -211,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
             void onServiceConnected(NotiMonService service)
             {
                 statusNotifyMan.setServiceRunning(true);
-                wvMan.AddPlugin(service.getCommCH_IF());
+                wvMan.Get_CommIf().addCH(service.getCommCH_IF());
                 service.setContext(MainActivity.this);
                 try {
                     systemStatusJObj.put("service",this.GetService().getSysStatusNotifier());
@@ -224,7 +213,7 @@ public class MainActivity extends AppCompatActivity {
             {
                 statusNotifyMan.setServiceRunning(false);
 
-                wvMan.RemovePlugin(this.GetService().getCommCH_IF());
+                wvMan.Get_CommIf().rmCH(this.GetService().getCommCH_IF());
                 this.GetService().setContext(null);
                 systemStatusJObj.remove("service");
                 Log.i("ServiceManger NotiMon", "Service:"+name+" onDestroy");

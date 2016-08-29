@@ -49,12 +49,22 @@ public class WebUIMan {
 
 
 
+
     StatusNotifyMan statusNotiMan=null;
     WebUIMan(WebView webView,String JsIfName,String EntryUrl,JSONOBJ_Notifier sysNotifier)
     {
         statusNotiMan = new StatusNotifyMan(sysNotifier);
-        chNode = new CommCH_Node();
         WebUIManCommIf=new WebAppInterface();
+
+
+        chNode = new CommCH_Node(){
+
+            @Override
+            public String SendData(final String url,final JSONObject data){
+                WebUIManCommIf.ToWeb(url,data);
+                return null;
+            }
+        };
         InitWebUIMan(webView,JsIfName,EntryUrl);
 
     }
@@ -112,7 +122,7 @@ public class WebUIMan {
     }
 
 
-    public CommCH_IF Get_CommIf()
+    public CommCH_Node Get_CommIf()
     {
         return chNode;
     }
@@ -129,7 +139,8 @@ public class WebUIMan {
 
                     statusNotiMan.setJsTrafficToWebCount();
                     String data=JsDataFuncCallName+((JSONObject)inputMessage.obj).toString()+"')";
-                    //Log.v("handleMessage",data);
+
+                    Log.v("handleMessage",data);
                     webView.loadUrl(data);
                     break;
                 case MDMJsSysInfo:
@@ -143,16 +154,15 @@ public class WebUIMan {
 
         @JavascriptInterface
         public String FromWeb(String DATA) {
+            //Log.v("WebAppInterface",">>FromWeb>>"+DATA);
             statusNotiMan.setJsTrafficFromWebCount();
-            Log.v(this.getClass().getName(), DATA);
+            //Log.v(this.getClass().getName(), DATA);
             try {
                 JSONObject jobj=new JSONObject(DATA);
-
                 String url=jobj.optString("url", null);
                 JSONObject data=jobj.optJSONObject("data");
 
-
-                return chNode.SendData(url, data, null);
+                return chNode.RecvData(url, data, null);
 
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -162,14 +172,11 @@ public class WebUIMan {
         }
 
 
-
-        public String RecvData(final String url,final  JSONObject data,CommCH_IF from)//may from other thread
-        {
-
+        public String ToWeb(String url,JSONObject DATA) {
             JSONObject jobj=new JSONObject();
             try {
-                jobj.put("url",from.getCHName()+"/"+ url);
-                jobj.put("data",data);
+                jobj.put("url",url);
+                jobj.put("data",DATA);
             } catch (JSONException e) {
                 e.printStackTrace();
                 return null;
@@ -183,14 +190,10 @@ public class WebUIMan {
             msg.what=IncommingDataWhich.MDMJsData.ordinal();
 
             msgHandler.sendMessage(msg);
+
             return null;
         }
-
     }
-
-
-
-
 
 
 
