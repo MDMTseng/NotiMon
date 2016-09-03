@@ -108,6 +108,21 @@ public class DevOrienation {
         @Override
         public String RecvData(String url, JSONObject data, CommCH_IF from) {
             String []urlArr = url.split("/");
+
+            Log.i("urlArr.length",urlArr.length+"");
+            if(urlArr.length == 1)
+            {
+                if(urlArr[0]=="enable")
+                {
+                    Log.i("DevOrienation",url);
+                    start(context);
+                }else
+                if(urlArr[0]=="disable"){
+                    stop(context);
+
+                }
+            }
+            Log.i("DevOrienation",url);
             return null;
         }
 

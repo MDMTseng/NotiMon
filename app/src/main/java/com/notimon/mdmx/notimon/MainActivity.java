@@ -238,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onDestroy() {
-        wvMan.CleanWebUIMan();
+        //wvMan.CleanWebUIMan();
         servMan.unbindService();
         super.onDestroy();
     }

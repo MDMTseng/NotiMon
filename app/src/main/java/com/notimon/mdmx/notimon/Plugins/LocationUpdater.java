@@ -1,4 +1,4 @@
-package com.notimon.mdmx.notimon;
+package com.notimon.mdmx.notimon.Plugins;
 
 import android.Manifest;
 import android.content.Context;

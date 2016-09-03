@@ -1,6 +1,7 @@
 package com.notimon.mdmx.notimon;
 
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Base64;
 import android.util.Log;
@@ -56,11 +57,11 @@ public class WebUIMan {
         statusNotiMan = new StatusNotifyMan(sysNotifier);
         WebUIManCommIf=new WebAppInterface();
 
-
         chNode = new CommCH_Node(){
 
             @Override
             public String SendData(final String url,final JSONObject data){
+
                 WebUIManCommIf.ToWeb(url,data);
                 return null;
             }
@@ -75,7 +76,6 @@ public class WebUIMan {
         if(this.webView!=null)return false;
 
         this.jSIFName=JsIfName;
-
 
         JsDataFuncCallName="javascript:"+jSIFName+".ToWeb('";
         JsSysInfoFuncCallName="javascript:"+jSIFName+".SysInfo('";
@@ -110,6 +110,7 @@ public class WebUIMan {
 
     boolean CleanWebUIMan()
     {
+        Log.v("WebUIMan",">>CleanWebUIMan");
         if(this.webView==null)return false;
         webView.clearHistory();
         webView.clearCache(true);
@@ -127,34 +128,10 @@ public class WebUIMan {
         return chNode;
     }
 
-
-    private Handler msgHandler = new Handler( ){
-        @Override
-        public void handleMessage(Message inputMessage) {
-            if(webView == null)return;
-
-            IncommingDataWhich which=IncommingDataWhich.values()[inputMessage.what];
-            switch(which) {
-                case MDMJsData:
-
-                    statusNotiMan.setJsTrafficToWebCount();
-                    String data=JsDataFuncCallName+((JSONObject)inputMessage.obj).toString()+"')";
-
-                    Log.v("handleMessage",data);
-                    webView.loadUrl(data);
-                    break;
-                case MDMJsSysInfo:
-                    webView.loadUrl(JsSysInfoFuncCallName+(String)inputMessage.obj+"')");
-                    break;
-            }
-        }
-    };
-
     public class WebAppInterface {
 
         @JavascriptInterface
         public String FromWeb(String DATA) {
-            //Log.v("WebAppInterface",">>FromWeb>>"+DATA);
             statusNotiMan.setJsTrafficFromWebCount();
             //Log.v(this.getClass().getName(), DATA);
             try {
@@ -183,16 +160,57 @@ public class WebUIMan {
             }
 
 
-            Message msg=msgHandler.obtainMessage();
+            if(Looper.myLooper() == Looper.getMainLooper())//if it's in UI thread
+            {
+                sendMsgToWeb(jobj);
+            }
+            else
+            {   //Send by handler
+                Message msg=msgHandler.obtainMessage();
 
-            msg.obj=jobj;
+                msg.obj=jobj;
 
-            msg.what=IncommingDataWhich.MDMJsData.ordinal();
+                msg.what=IncommingDataWhich.MDMJsData.ordinal();
 
-            msgHandler.sendMessage(msg);
+                msgHandler.sendMessage(msg);
+            }
+
 
             return null;
         }
+
+
+
+
+        private Handler msgHandler = new Handler( ){
+            @Override
+            public void handleMessage(Message inputMessage) {
+            if(webView == null)return;
+
+            IncommingDataWhich which=IncommingDataWhich.values()[inputMessage.what];
+            switch(which) {
+                case MDMJsData:
+                    sendMsgToWeb((JSONObject)inputMessage.obj);
+                    break;
+                case MDMJsSysInfo:
+                    webView.loadUrl(JsSysInfoFuncCallName+(String)inputMessage.obj+"')");
+                    break;
+            }
+            }
+        };
+
+        private boolean sendMsgToWeb(JSONObject json)
+        {
+
+            statusNotiMan.setJsTrafficToWebCount();
+            String data=JsDataFuncCallName+json.toString()+"')";
+
+            Log.i("sendMsgToWeb>>",">>>>"+data);
+            webView.loadUrl(data);
+            return true;
+        }
+
+
     }
 
 

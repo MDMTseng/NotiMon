@@ -60,6 +60,7 @@ public class CommCH_Node implements CommCH_IF {
             rest_url=url.substring(idxOfSlash+1,url.length());
         }
 
+
         CommCH_IF commIF=PluginMap.get(submoduleName);
         if(commIF != null)
             return commIF.RecvData(rest_url, data ,this);

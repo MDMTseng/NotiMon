@@ -7,14 +7,8 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.location.Location;
-import android.location.LocationProvider;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
@@ -23,6 +17,7 @@ import com.notimon.mdmx.notimon.CommCH_IF.CommCH_IF;
 import com.notimon.mdmx.notimon.CommCH_IF.CommCH_Node;
 import com.notimon.mdmx.notimon.JSON_Notifier.JSONOBJ_Notifier;
 import com.notimon.mdmx.notimon.Plugins.DevOrienation;
+import com.notimon.mdmx.notimon.Plugins.LocationProvidorCH;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -47,81 +42,6 @@ public class NotiMonService extends Service {
     private int iCounter;
 
     PokeRadarAPI pokeAPI;
-    class mLocationUpdater extends LocationUpdater
-    {
-        private Location lastLocation = null;
-        private int GPS_Status = -1;
-        mLocationUpdater(Context context) {
-            super(context);
-            GPS_Status = -1;
-        }
-        public void onLocationChanged(Location location) {
-            if (location != null){
-                lastLocation = location;
-
-                GPS_Status = LocationProvider.AVAILABLE;
-                statusNotifyMan.updateGPS(GPS_Status,location);
-            }
-        }
-
-        @Override
-        public void onStatusChanged(String provider, int status, Bundle extras) {
-            if(status == LocationProvider.OUT_OF_SERVICE)
-            {
-                lastLocation = null;
-            }
-            GPS_Status = status;
-            statusNotifyMan.updateGPS(GPS_Status,lastLocation);
-            Log.i("SuperMap", "onStatusChanged provider:" +provider + " status: " +
-                    status);
-        }
-
-        @Override
-        public void onProviderEnabled(String provider) {
-            lastLocation = null;
-            GPS_Status =LocationProvider.TEMPORARILY_UNAVAILABLE;;
-            statusNotifyMan.updateGPS(GPS_Status,null);
-            updateNotification("Location service is on...",-1);
-            Log.i("SuperMap", "onProviderEnabled provider:" +provider );
-        }
-
-        @Override
-        public void onProviderDisabled(String provider) {
-            lastLocation = null;
-            GPS_Status = LocationProvider.OUT_OF_SERVICE;
-            statusNotifyMan.updateGPS(GPS_Status,lastLocation);
-            Log.i("SuperMap", "onProviderDisabled provider:" +provider );
-            updateNotification("Location service is off...",-1);
-                /*Intent gpsOptionsIntent = new Intent(
-                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                startActivity(gpsOptionsIntent);*/
-
-        }
-        int getGPSStatus()
-        {
-            return GPS_Status;
-        }
-
-
-        Location getLastLocation()
-        {
-            return lastLocation;
-        }
-
-        protected void close() {
-            super.close();
-
-            GPS_Status =LocationProvider.OUT_OF_SERVICE;;
-
-            statusNotifyMan.updateGPS(GPS_Status,null);
-
-        }
-
-    }
-
-
-
-    mLocationUpdater locationUpdater = null;
 
 
 
@@ -191,7 +111,6 @@ public class NotiMonService extends Service {
         SelectedPokemons = loadIdMapFromWebUIStore();
 
 
-        locationUpdater = new mLocationUpdater(this);
         systemStatusJObj = new JSONOBJ_Notifier();
         statusNotifyMan = new StatusNotifyMan(systemStatusJObj);
         iCounter = 0;
@@ -223,8 +142,6 @@ public class NotiMonService extends Service {
                     } catch (Exception e) {
                         break;
                     }
-                    final Location catcheLastLocation=locationUpdater.getLastLocation();
-
                     if(isRunning){
                         Log.i(TAG, "Service running"+ (iCounter++));
                     }
@@ -319,10 +236,6 @@ public class NotiMonService extends Service {
     public void onDestroy() {
         periodicTask.interrupt();
 
-        if(locationUpdater !=null)
-            locationUpdater.close();
-        locationUpdater=null;
-
         periodicTask=null;
         mNotificationManager.cancelAll();
         mNotificationManager = null;
@@ -365,15 +278,27 @@ public class NotiMonService extends Service {
     {
         String CHName;
 
-        DevOrienation devOri=new DevOrienation(NotiMonService.this);
+        DevOrienation devOriCH =new DevOrienation(NotiMonService.this);
+        LocationProvidorCH locaCH=new LocationProvidorCH(NotiMonService.this);
         MainComm_IF(String CHName)
         {
             this.CHName=CHName;
-            addCH(devOri.getCommCH_IF());
+            addCH(devOriCH.getCommCH_IF());//Add device orientation submodule
+            addCH(locaCH.getCommCH_IF());//Add location submodule
         }
         @Override
         public String getCHName() {
             return CHName;
+        }
+
+        @Override
+        public String SendData(final String url,final JSONObject data){
+
+            //Hijeck data in subCH
+
+
+
+            return super.SendData(url,data);
         }
 
         @Override
@@ -394,35 +319,6 @@ public class NotiMonService extends Service {
 
                 return null;
             }
-
-
-            if(urlArr[0].contentEquals("GET"))
-            {
-                if(urlArr.length<2)return null;
-
-                return null;
-            }
-
-            if(urlArr[0].contentEquals("GPS"))
-            {
-                if(urlArr.length<3)return null;
-
-                if(urlArr[2].contentEquals("true"))
-                {
-                    if(locationUpdater ==null)
-                        locationUpdater = new mLocationUpdater(NotiMonService.this);
-                }
-                else
-                {
-                    if(locationUpdater !=null)
-                    {
-                        locationUpdater.close();
-                    }
-                    locationUpdater =null;
-                }
-                return null;
-            }
-
             if(urlArr[0].contentEquals("pokemonselect"))
             {
                 if(urlArr.length<2)return null;
@@ -453,69 +349,9 @@ public class NotiMonService extends Service {
     private class StatusNotifyMan
     {
         JSONOBJ_Notifier sysNotifier;
-        JSONObject GPS_status;
-        JSONObject Orientation_status;
         StatusNotifyMan(JSONOBJ_Notifier sysNotifier)
         {
             this.sysNotifier=sysNotifier;
-            GPS_status = new JSONObject();
-            Orientation_status = new JSONObject();
-            try {
-                sysNotifier.put("GPS_status",GPS_status);
-                sysNotifier.put("Orientation_status",Orientation_status);
-                updateGPS(locationUpdater.getGPSStatus(),null);
-                updateOrientation(0,null);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
-        public synchronized  void updateGPS(int status,Location loca) {
-
-            try {
-                GPS_status.put("status",status);
-
-                if(loca!=null) {
-                    GPS_status.put("provider", loca.getProvider());
-                    GPS_status.put("longitude", loca.getLongitude());
-                    GPS_status.put("latitude", loca.getLatitude());
-                    GPS_status.put("altitude", loca.getAltitude());
-                    GPS_status.put("accuracy", loca.getAccuracy());
-                }
-                else
-                {
-                    GPS_status.remove("longitude");
-                    GPS_status.remove("latitude");
-                    GPS_status.remove("altitude");
-                    GPS_status.remove("accuracy");
-                    GPS_status.remove("provider");
-                }
-                sysNotifier.put("GPS_status",GPS_status);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
-        public synchronized  void updateOrientation(int status,SensorEvent event) {
-
-            try {
-                Orientation_status.put("status",status);
-                if(event!=null) {
-                    Orientation_status.put("SensorType", event.sensor.getName());
-                    Orientation_status.put("x", event.values[0]);
-                    Orientation_status.put("y", event.values[1]);
-                    Orientation_status.put("z", event.values[2]);
-                }
-                else
-                {
-                    Orientation_status.remove("SensorType");
-                    Orientation_status.remove("x");
-                    Orientation_status.remove("y");
-                    Orientation_status.remove("z");
-                }
-
-                sysNotifier.put("Orientation_status",Orientation_status);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
         }
 
     }
